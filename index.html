@@ -4,10 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>China Timelapse</title>
-<meta name="description" content="Watch China light up from space, year by year, 1992 to 2021.">
+<meta name="description" content="Watch China light up from space, year by year, 1992 to 2021, with high-speed rail drawn in as it opened.">
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
 <style>
-  :root { --bg:#04060b; --panel:rgba(10,14,22,.82); --line:rgba(255,255,255,.14); --text:#e9e6df; --dim:#9aa0ab; --gold:#ffc46b; }
+  :root { --bg:#04060b; --panel:rgba(10,14,22,.82); --line:rgba(255,255,255,.14); --text:#e9e6df; --dim:#9aa0ab; --gold:#ffc46b; --rail:#45d4ff; }
   * { box-sizing:border-box; }
   html, body { margin:0; height:100%; background:var(--bg); color:var(--text);
     font:15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; overflow:hidden; }
@@ -23,6 +23,7 @@
     padding:6px 12px; cursor:pointer; }
   button:hover { background:rgba(255,255,255,.07); }
   button[aria-pressed="true"] { border-color:var(--gold); color:var(--gold); }
+  #btnRail[aria-pressed="true"] { border-color:var(--rail); color:var(--rail); }
   #dock { left:16px; right:16px; bottom:calc(16px + env(safe-area-inset-bottom)); padding:12px 16px 14px;
     display:grid; grid-template-columns:auto auto 1fr auto; gap:6px 16px; align-items:center; }
   #year { font-size:44px; font-weight:700; font-variant-numeric:tabular-nums; line-height:1; color:#fff; min-width:2.6em; }
@@ -30,10 +31,11 @@
   #slider { width:100%; accent-color:var(--gold); height:28px; margin:0; }
   #ticks { grid-column:3; display:flex; justify-content:space-between; color:var(--dim); font-size:11px;
     font-variant-numeric:tabular-nums; margin-top:-6px; }
-  #stat { text-align:right; min-width:170px; }
-  #stat b { display:block; font-size:18px; color:#fff; font-variant-numeric:tabular-nums; }
-  #stat span { color:var(--dim); font-size:12px; }
-  #spark { display:block; margin:4px 0 0 auto; }
+  #stat { text-align:right; min-width:190px; grid-row:1 / span 2; grid-column:4; }
+  .num { display:block; font-size:17px; font-weight:650; color:#fff; font-variant-numeric:tabular-nums; line-height:1.2; }
+  .sub { display:block; color:var(--dim); font-size:12px; margin-bottom:5px; }
+  #railNum { color:var(--rail); }
+  #credit { grid-column:1 / 4; font-size:10.5px; color:rgba(255,255,255,.42); margin-top:2px; }
   .city { color:rgba(255,255,255,.62); font-size:11px; letter-spacing:.03em; text-shadow:0 0 4px #000, 0 0 2px #000;
     pointer-events:none; white-space:nowrap; transform:translateY(-9px); }
   .hide-labels .city, .z-low .city.t2 { display:none; }
@@ -51,9 +53,11 @@
     #dock { grid-template-columns:auto 1fr; }
     #year { font-size:34px; }
     #slider, #ticks { grid-column:1 / -1; }
-    #stat { grid-column:1 / -1; text-align:left; display:flex; gap:10px; align-items:baseline; min-width:0; }
-    #spark { display:none; }
+    #stat { grid-column:1 / -1; grid-row:auto; text-align:left; display:grid; grid-template-columns:1fr 1fr; gap:0 12px; min-width:0; }
+    .num { font-size:15px; } .sub { margin-bottom:0; }
     #head p { display:none; }
+    #tools { gap:4px; padding:4px; } button { padding:5px 8px; font-size:13px; }
+    #credit { grid-column:1 / -1; }
   }
 </style>
 </head>
@@ -63,10 +67,11 @@
 
 <div id="head" class="panel">
   <h1>China Timelapse</h1>
-  <p>The country seen from space at night, one picture a year from 1992 to 2021.</p>
+  <p>The country seen from space at night, 1992 to 2021, with high-speed rail drawn in as it opened.</p>
 </div>
 
 <div id="tools" class="panel">
+  <button id="btnRail" aria-pressed="true">Rail</button>
   <button id="btnLabels" aria-pressed="true">Cities</button>
   <button id="btnAbout">About</button>
 </div>
@@ -75,33 +80,40 @@
   <button id="play" aria-label="Play">&#9654;</button>
   <div id="year">1992</div>
   <input id="slider" type="range" min="1992" max="2021" step="0.01" value="1992" aria-label="Year">
-  <div id="stat"><b id="statNum"></b><span id="statSub"></span>
-    <svg id="spark" width="170" height="30" aria-hidden="true"></svg></div>
+  <div id="stat">
+    <div><span class="num" id="statNum"></span><span class="sub" id="statSub"></span></div>
+    <div><span class="num" id="railNum"></span><span class="sub" id="railSub"></span></div>
+  </div>
   <div id="ticks"></div>
+  <div id="credit">Lights: Li et al. 2020 · Rail: © OpenStreetMap contributors</div>
 </div>
 
 <div id="about" role="dialog" aria-modal="true" aria-labelledby="aboutTitle">
   <article>
     <h2 id="aboutTitle">About this map</h2>
-    <p>Each frame is one year of light seen from orbit at night. Press play, or drag the slider, to watch thirty years of building, electrification and urban growth. This is the first layer of a larger project; built-up land, high-speed rail, metro systems and airports will follow.</p>
-    <h3>What the number means</h3>
-    <p>"Brightly lit area" is the land inside the border drawn here that shines at city or town strength (20 or more on the data's scale of 0 to 63). It counts how far strong light has spread, not how bright the cities have become. The dip in 2014 is the change of satellite sensor, not a real darkening.</p>
+    <p>Each frame is light seen from orbit at night. Press play, or drag the slider, to watch thirty years of building, electrification and urban growth, and the high-speed rail network appearing from 2003. Built-up land, metro systems and airports will follow.</p>
+    <h3>What the numbers mean</h3>
+    <p>"Brightly lit area" is the land inside the border drawn here that shines at city or town strength (20 or more on the data's scale of 0 to 63). It counts how far strong light has spread, not how bright the cities have become.</p>
+    <p>"High-speed rail" is the length of line open by that year, estimated from the mapped tracks. It is approximate; see the limits below.</p>
     <h3>Data</h3>
     <ul>
       <li>Night lights: Li, Zhou, Zhao and Zhao (2020), <a href="https://doi.org/10.1038/s41597-020-0510-y" target="_blank" rel="noopener">A harmonized global nighttime light dataset 1992-2018</a>, Scientific Data 7:168, with the authors' extension to 2021. It joins two generations of satellite sensor (DMSP until 2013, VIIRS from 2014) into one comparable series at about 1 km. Accessed through Google Earth Engine.</li>
+      <li>High-speed rail: © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors, under the Open Database Licence. Every track tagged as high-speed (which in OpenStreetMap includes lines of 200 km/h and above), with the opening date its mappers recorded.</li>
       <li>Borders: the Aliyun DataV boundary service.</li>
       <li>Coastlines: Natural Earth.</li>
     </ul>
     <h3>Limits</h3>
     <ul>
-      <li>The two sensors do not see alike. The join between 2013 and 2014 is corrected in the data but can still show as a small step.</li>
+      <li>Each frame is a three-year average centred on its year. The raw yearly pictures flicker, because different satellites flew in different years and their readings do not agree exactly.</li>
+      <li>The two sensors do not see alike. Faint light is left out because the newer sensor picks up glow the older one could not, and a small step can remain around 2014.</li>
       <li>The older sensor saturates in city centres, so the brightest cores look the same from year to year even when they grew brighter.</li>
       <li>Light is a proxy. Gas flares, fishing fleets and snow glare register too; dimming can mean better-shielded lamps as well as decline.</li>
+      <li>Rail opening years come from volunteers' tags. Where a track had none, it takes the year of the nearest dated track on the same line. Some years will be wrong, and the length is an estimate, not an official figure.</li>
     </ul>
     <h3>Borders</h3>
     <p>Boundaries follow China's official standard map. Several are disputed, and their use here is a design choice for a map about China, not a statement on those disputes.</p>
     <h3>Credit</h3>
-    <p>Map and data pipeline by Alexander Dakin. The satellite data sets are the work of the authors named above. Code and build scripts: <a id="repoLink" href="https://github.com/adakin97/china-timelapse" target="_blank" rel="noopener">github.com/adakin97/china-timelapse</a>.</p>
+    <p>Map and data pipeline by Alexander Dakin. The data sets are the work of the authors and contributors named above. Code and build scripts: <a href="https://github.com/adakin97/china-timelapse" target="_blank" rel="noopener">github.com/adakin97/china-timelapse</a>.</p>
     <p><button id="btnClose">Close</button></p>
   </article>
 </div>
@@ -120,16 +132,19 @@ const CITIES = [ // name, lon, lat, tier (1 always shown, 2 when zoomed in)
   ["Haikou",110.35,20.02,2],["Xining",101.78,36.62,2],["Yinchuan",106.23,38.49,2],["Nanchang",115.86,28.68,2],
   ["Shijiazhuang",114.51,38.04,2]];
 const SECONDS_PER_YEAR = 0.75;
+const RAIL_NEW = [255, 255, 255], RAIL_OLD = [69, 212, 255];
 const $ = s => document.querySelector(s);
 const imgUrl = y => `data/lights/${y}.webp`;
+const clamp01 = v => Math.max(0, Math.min(1, v));
 
 (async function main() {
-  const meta = await (await fetch("data/years.json")).json();
+  const [meta, railMeta] = await Promise.all([fetch("data/years.json").then(r => r.json()),
+    fetch("data/rail.json").then(r => r.ok ? r.json() : { years: [] }).catch(() => ({ years: [] }))]);
   const years = meta.years.map(d => d.year), Y0 = years[0], Y1 = years[years.length - 1];
   const [W, S, E, N] = meta.bounds;
-  const corners = [[W, N], [E, N], [E, S], [W, S]];
   const slider = $("#slider"); slider.min = Y0; slider.max = Y1; slider.value = Y0;
   $("#ticks").innerHTML = [Y0, 2000, 2010, Y1].map(y => `<span>${y}</span>`).join("");
+  let t = Y0, playing = false, last = 0, railOn = true;
 
   const map = new maplibregl.Map({
     container: "map", attributionControl: false, dragRotate: false, pitchWithRotate: false, touchPitch: false,
@@ -138,22 +153,107 @@ const imgUrl = y => `data/lights/${y}.webp`;
     style: { version: 8, sources: {
         land: { type: "geojson", data: "data/land.geojson" },
         china: { type: "geojson", data: "data/china.geojson" },
-        la: { type: "image", url: imgUrl(Y0), coordinates: corners },
-        lb: { type: "image", url: imgUrl(Y0 + 1), coordinates: corners } },
+        rail: { type: "geojson", data: "data/rail.geojson" } },
       layers: [
         { id: "bg", type: "background", paint: { "background-color": "#04060b" } },
         { id: "land", type: "fill", source: "land", paint: { "fill-color": "#0a0e16" } },
         { id: "china", type: "fill", source: "china", filter: ["==", ["get", "kind"], "country"], paint: { "fill-color": "#111724" } },
-        { id: "la", type: "raster", source: "la", paint: { "raster-opacity": 1, "raster-fade-duration": 0, "raster-opacity-transition": { duration: 0 } } },
-        { id: "lb", type: "raster", source: "lb", paint: { "raster-opacity": 0, "raster-fade-duration": 0, "raster-opacity-transition": { duration: 0 } } },
         { id: "prov", type: "line", source: "china", filter: ["==", ["get", "kind"], "province"], paint: { "line-color": "rgba(255,255,255,.10)", "line-width": 0.6 } },
         { id: "dash", type: "line", source: "china", filter: ["==", ["get", "kind"], "dashline"], paint: { "line-color": "rgba(255,255,255,.34)", "line-width": 1.1 } },
         { id: "border", type: "line", source: "china", filter: ["==", ["get", "kind"], "country"], paint: { "line-color": "rgba(255,255,255,.34)", "line-width": 1.1 } }
       ] }
   });
+  window.timelapseMap = map;                  // handy for checking the page from the browser console
   map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
   map.touchZoomRotate.disableRotation();
   document.querySelector(".maplibregl-ctrl-top-right").style.marginTop = "64px";
+
+  // ── Night lights ──────────────────────────────────────────────────────────────────────────
+  // Drawn by a small shader that blends this year's picture and next year's in exact proportion,
+  // so brightness moves smoothly through the year and nothing jumps at the changeover.
+  const mx = lon => (lon + 180) / 360;
+  const my = lat => (1 - Math.log(Math.tan(Math.PI / 4 + lat * Math.PI / 360)) / Math.PI) / 2;
+  const lights = {
+    id: "lights", type: "custom", renderingMode: "2d", tex: {}, pending: [], loading: {}, lastY: null,
+    onAdd(m, gl) {
+      const sh = (type, src) => { const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s); return s; };
+      const p = this.prog = gl.createProgram();
+      gl.attachShader(p, sh(gl.VERTEX_SHADER, "uniform mat4 m; attribute vec2 p; attribute vec2 uv; varying vec2 v; void main(){ v=uv; gl_Position=m*vec4(p,0.,1.); }"));
+      gl.attachShader(p, sh(gl.FRAGMENT_SHADER, "precision mediump float; uniform sampler2D a; uniform sampler2D b; uniform float f; varying vec2 v; void main(){ gl_FragColor=mix(texture2D(a,v,-0.6),texture2D(b,v,-0.6),f); }"));
+      gl.linkProgram(p);
+      this.buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, this.buf);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([mx(W), my(N), 0, 0, mx(E), my(N), 1, 0, mx(W), my(S), 0, 1, mx(E), my(S), 1, 1]), gl.STATIC_DRAW);
+      this.mip = typeof WebGL2RenderingContext !== "undefined" && gl instanceof WebGL2RenderingContext;
+    },
+    want(y) {                                   // start fetching and decoding a year's picture if we do not have it
+      if (y < Y0 || y > Y1 || this.tex[y] || this.loading[y]) return;
+      this.loading[y] = true;
+      const im = new Image(); im.src = imgUrl(y);
+      const done = () => { this.pending.push([y, im]); map.triggerRepaint(); };
+      (im.decode ? im.decode() : new Promise((ok, no) => { im.onload = ok; im.onerror = no; })).then(done, () => { delete this.loading[y]; });
+    },
+    upload(gl, y, im) {
+      const flip = gl.getParameter(gl.UNPACK_FLIP_Y_WEBGL), pre = gl.getParameter(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL);
+      const tx = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, tx);
+      gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false); gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, true);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, im);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+      if (this.mip) { gl.generateMipmap(gl.TEXTURE_2D); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR); }
+      else gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+      gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, flip); gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, pre);
+      this.tex[y] = tx; delete this.loading[y];
+    },
+    render(gl, matrix) {
+      const y = Math.min(Math.floor(t), Y1), f = y < Y1 ? t - y : 0;
+      [y, y + 1, y + 2].forEach(k => this.want(k));
+      if (this.pending.length) { const [py, im] = this.pending.shift(); this.upload(gl, py, im); if (this.pending.length) map.triggerRepaint(); }
+      // keep the pictures around the current year, plus the one last drawn, and free the rest
+      for (const k of Object.keys(this.tex)) if ((k < y - 1 || k > y + 2) && +k !== this.lastY) { gl.deleteTexture(this.tex[k]); delete this.tex[k]; }
+      let ya = y, yb = y + 1, mix = f;
+      if (!this.tex[ya]) { ya = this.tex[yb] ? yb : this.lastY; mix = 0; }   // not ready yet: hold what was on screen
+      if (!this.tex[ya]) return;
+      if (!this.tex[yb]) { yb = ya; mix = 0; }
+      const a = this.tex[ya], b = this.tex[yb];
+      this.lastY = mix < 0.5 ? ya : yb;
+      gl.useProgram(this.prog);
+      gl.uniformMatrix4fv(gl.getUniformLocation(this.prog, "m"), false, matrix);
+      gl.uniform1f(gl.getUniformLocation(this.prog, "f"), mix);
+      gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, a); gl.uniform1i(gl.getUniformLocation(this.prog, "a"), 0);
+      gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, b); gl.uniform1i(gl.getUniformLocation(this.prog, "b"), 1);
+      gl.bindBuffer(gl.ARRAY_BUFFER, this.buf);
+      const lp = gl.getAttribLocation(this.prog, "p"), lu = gl.getAttribLocation(this.prog, "uv");
+      gl.enableVertexAttribArray(lp); gl.vertexAttribPointer(lp, 2, gl.FLOAT, false, 16, 0);
+      gl.enableVertexAttribArray(lu); gl.vertexAttribPointer(lu, 2, gl.FLOAT, false, 16, 8);
+      gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    }
+  };
+
+  // ── High-speed rail ───────────────────────────────────────────────────────────────────────
+  // One layer per opening year, so that fading a year's lines in only changes one colour and one opacity.
+  const railYears = railMeta.years.map(d => d.year).filter(y => y <= Y1);
+  const railRows = railMeta.years.length ? [{ year: railMeta.years[0].year - 1, km: 0 }, ...railMeta.years] : [];
+  const railState = {};
+  function addRail() {
+    railYears.forEach(y => map.addLayer({ id: "rail-" + y, type: "line", source: "rail", filter: ["==", ["get", "y"], y],
+      layout: { "line-cap": "round", "line-join": "round" },
+      paint: { "line-color": "#fff", "line-opacity": 0, "line-opacity-transition": { duration: 0 }, "line-color-transition": { duration: 0 },
+        "line-width": ["interpolate", ["linear"], ["zoom"], 3, 0.9, 5, 1.4, 8, 2.6] } }, "prov"));
+  }
+  function drawRail() {
+    railYears.forEach(y => {
+      const age = t - (y - 1);                   // the frame for a year shows the country at that year's end, so a
+                                                 // line opened in year y fades in on the way from y-1 to y, white at first
+      const o = railOn ? Math.round(clamp01(age / 0.8) * 0.95 * 50) / 50 : 0;
+      const k = clamp01((age - 0.8) / 2.2), c = RAIL_NEW.map((v, i) => Math.round(v + (RAIL_OLD[i] - v) * k));
+      const key = o + "|" + c.join(",");
+      if (railState[y] === key) return;
+      railState[y] = key;
+      map.setPaintProperty("rail-" + y, "line-opacity", o);
+      map.setPaintProperty("rail-" + y, "line-color", `rgb(${c.join(",")})`);
+    });
+  }
 
   CITIES.forEach(([name, lon, lat, tier]) => {
     const el = document.createElement("div"); el.className = "city t" + tier; el.textContent = name;
@@ -162,38 +262,26 @@ const imgUrl = y => `data/lights/${y}.webp`;
   const zoomClass = () => document.body.classList.toggle("z-low", map.getZoom() < 4.6);
   map.on("zoom", zoomClass); zoomClass();
 
-  // Two picture layers. "base" shows the current year in full; "next" fades the following year in on top.
-  let base = "la", next = "lb", baseYear = Y0, nextYear = Y0 + 1, t = Y0, playing = false, last = 0;
-  const other = id => id === "la" ? "lb" : "la";
-  const setImg = (id, y) => map.getSource(id).updateImage({ url: imgUrl(Math.min(y, Y1)), coordinates: corners });
-  const op = (id, v) => map.setPaintProperty(id, "raster-opacity", v);
-
+  // ── Clock, counters, controls ─────────────────────────────────────────────────────────────
+  const lerpSeries = (rows, key, time) => {
+    if (!rows.length || time < rows[0].year) return 0;
+    const i = Math.min(Math.floor(time) - rows[0].year, rows.length - 1), a = rows[i][key], b = (rows[i + 1] || rows[i])[key];
+    return a + (b - a) * clamp01(time - rows[i].year);
+  };
+  const fmtArea = n => n >= 1e6 ? (n / 1e6).toFixed(2) + " million km²" : (Math.round(n / 1000) * 1000).toLocaleString("en-GB") + " km²";
   function show(time) {
     t = Math.max(Y0, Math.min(Y1, time));
-    const y = Math.min(Math.floor(t), Y1), frac = t - y;
-    if (y === nextYear && y === baseYear + 1) {           // rolled into the next year: swap the two layers' roles
-      const old = base; base = next; next = old; baseYear = y; nextYear = y + 1;
-      op(next, 0); setImg(next, nextYear); map.moveLayer(next, "prov"); op(base, 1);
-    } else if (y !== baseYear) {                           // jumped somewhere else on the slider
-      baseYear = y; nextYear = y + 1; op(next, 0); setImg(base, baseYear); setImg(next, nextYear); op(base, 1);
-    }
-    op(next, y < Y1 ? frac : 0);
-    $("#year").textContent = y; slider.value = t; stat(y, frac);
+    const y = Math.min(Math.floor(t), Y1);
+    $("#year").textContent = y; slider.value = t;
+    const lit = lerpSeries(meta.years, "lit_km2", t), ratio = lit / meta.years[0].lit_km2;
+    $("#statNum").textContent = fmtArea(lit);
+    $("#statSub").textContent = t === Y0 ? "brightly lit area" : `brightly lit, ${ratio.toFixed(1)} times ${Y0}`;
+    const km = lerpSeries(railRows, "km", t);   // length open at the end of each year
+    $("#railNum").textContent = km >= 50 ? (Math.round(km / 100) * 100).toLocaleString("en-GB") + " km" : "";
+    $("#railSub").textContent = km >= 50 ? "high-speed rail, approx." : "";
+    if (map.getLayer("rail-" + railYears[0])) drawRail();
+    map.triggerRepaint();
   }
-
-  const fmt = n => n >= 1e6 ? (n / 1e6).toFixed(2) + " million km²" : Math.round(n / 1000) + ",000 km²";
-  function stat(y, frac) {
-    const i = y - Y0, a = meta.years[i].lit_km2, b = (meta.years[i + 1] || meta.years[i]).lit_km2, v = a + (b - a) * frac;
-    $("#statNum").textContent = fmt(v);
-    const ratio = v / meta.years[0].lit_km2;
-    $("#statSub").textContent = y === Y0 && frac === 0 ? "brightly lit area" : `brightly lit, ${ratio.toFixed(1)} times ${Y0}`;
-    $("#sparkDot")?.setAttribute("cx", sx(y + frac)); $("#sparkDot")?.setAttribute("cy", sy(v));
-  }
-  const maxLit = Math.max(...meta.years.map(d => d.lit_km2));
-  const sx = y => 3 + (y - Y0) / (Y1 - Y0) * 164, sy = v => 27 - v / maxLit * 24;
-  $("#spark").innerHTML = `<polyline fill="none" stroke="rgba(255,196,107,.75)" stroke-width="1.5" points="${
-    meta.years.map(d => sx(d.year) + "," + sy(d.lit_km2)).join(" ")}"/><circle id="sparkDot" r="3" fill="#fff"/>`;
-
   function frame(now) {
     if (!playing) return;
     const dt = Math.min(0.5, (now - last) / 1000); last = now;
@@ -215,14 +303,18 @@ const imgUrl = y => `data/lights/${y}.webp`;
     if (e.code === "ArrowLeft") { setPlaying(false); show(Math.ceil(t) - 1); }
     if (e.code === "Escape") $("#about").classList.remove("open");
   });
+  $("#btnRail").onclick = e => { railOn = !railOn; e.currentTarget.setAttribute("aria-pressed", String(railOn)); show(t); };
   $("#btnLabels").onclick = e => { const off = document.body.classList.toggle("hide-labels"); e.currentTarget.setAttribute("aria-pressed", String(!off)); };
   $("#btnAbout").onclick = () => $("#about").classList.add("open");
   $("#btnClose").onclick = () => $("#about").classList.remove("open");
   $("#about").onclick = e => { if (e.target.id === "about") $("#about").classList.remove("open"); };
 
-  map.once("idle", () => { $("#loading").remove(); show(Y0); });
-  // warm the browser cache so playback does not wait on the network
-  let k = 0; (function warm() { if (k < years.length) { const im = new Image(); im.onload = im.onerror = warm; im.src = imgUrl(years[k++]); } })();
+  map.on("load", () => {
+    map.addLayer(lights, "prov"); addRail(); show(Y0);
+    $("#loading").remove();
+    // warm the browser cache so playback does not wait on the network
+    let k = 0; (function warm() { if (k < years.length) { const im = new Image(); im.onload = im.onerror = warm; im.src = imgUrl(years[k++]); } })();
+  });
 })();
 </script>
 </body>

@@ -1,6 +1,6 @@
 """Turn the yearly night-lights grids into the pictures the map shows, plus one line of numbers per year.
 
-Reads data/raw/ntl_<year>.npy, writes data/lights/<year>.webp (transparent where dark) and
+Reads data/raw/ntl_<year>.npy, smooths each year with its neighbours, writes data/lights/<year>.webp (transparent where dark) and
 data/years.json (brightly lit area and total light inside China's border as drawn on the map).
 """
 import json, math, sys
@@ -32,6 +32,24 @@ def colourise(a):
     return rgba
 
 
+def smoothed(year):
+    """The year's grid averaged with its neighbours (weights 1, 2, 1).
+
+    The raw yearly grids jump about: different satellites flew in different years, and their
+    readings do not agree exactly. Played as a film that shows as flashing. A three-year weighted
+    average keeps the trend and removes most of the flicker. The first and last years have one
+    neighbour only.
+    """
+    total, weight = None, 0
+    for y, w in ((year - 1, 1), (year, 2), (year + 1, 1)):
+        p = RAW / f"ntl_{y}.npy"
+        if p.exists():
+            a = np.load(p) * w
+            total = a if total is None else total + a
+            weight += w
+    return total / weight
+
+
 def china_mask():
     gj = json.loads((ROOT / "data" / "china.geojson").read_text())
     im = Image.new("L", (WIDTH, HEIGHT), 0); d = ImageDraw.Draw(im)
@@ -57,7 +75,7 @@ def main():
         p = RAW / f"ntl_{year}.npy"
         if not p.exists():
             continue
-        a = np.load(p)
+        a = smoothed(year)
         Image.fromarray(colourise(a), "RGBA").save(OUT / f"{year}.webp", quality=80, method=4)
         inside = np.where(mask, a, 0)
         years.append({"year": year, "lit_km2": int(((inside > LIT) * km2).sum()),
