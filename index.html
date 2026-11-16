@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>China Timelapse</title>
+<meta name="description" content="Watch China light up from space, year by year, 1992 to 2021.">
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
+<style>
+  :root { --bg:#04060b; --panel:rgba(10,14,22,.82); --line:rgba(255,255,255,.14); --text:#e9e6df; --dim:#9aa0ab; --gold:#ffc46b; }
+  * { box-sizing:border-box; }
+  html, body { margin:0; height:100%; background:var(--bg); color:var(--text);
+    font:15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; overflow:hidden; }
+  #map { position:absolute; inset:0; }
+  .maplibregl-canvas { outline:none; }
+  .panel { position:absolute; background:var(--panel); border:1px solid var(--line); border-radius:10px;
+    backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); }
+  #head { top:16px; left:16px; padding:12px 16px; max-width:min(340px, calc(100vw - 32px)); }
+  #head h1 { margin:0; font-size:17px; font-weight:650; letter-spacing:.01em; }
+  #head p { margin:2px 0 0; color:var(--dim); font-size:13px; }
+  #tools { top:16px; right:16px; display:flex; gap:8px; padding:6px; }
+  button { font:inherit; color:var(--text); background:transparent; border:1px solid var(--line); border-radius:7px;
+    padding:6px 12px; cursor:pointer; }
+  button:hover { background:rgba(255,255,255,.07); }
+  button[aria-pressed="true"] { border-color:var(--gold); color:var(--gold); }
+  #dock { left:16px; right:16px; bottom:calc(16px + env(safe-area-inset-bottom)); padding:12px 16px 14px;
+    display:grid; grid-template-columns:auto auto 1fr auto; gap:6px 16px; align-items:center; }
+  #year { font-size:44px; font-weight:700; font-variant-numeric:tabular-nums; line-height:1; color:#fff; min-width:2.6em; }
+  #play { width:44px; height:44px; border-radius:50%; padding:0; font-size:18px; border-color:var(--gold); color:var(--gold); }
+  #slider { width:100%; accent-color:var(--gold); height:28px; margin:0; }
+  #ticks { grid-column:3; display:flex; justify-content:space-between; color:var(--dim); font-size:11px;
+    font-variant-numeric:tabular-nums; margin-top:-6px; }
+  #stat { text-align:right; min-width:170px; }
+  #stat b { display:block; font-size:18px; color:#fff; font-variant-numeric:tabular-nums; }
+  #stat span { color:var(--dim); font-size:12px; }
+  #spark { display:block; margin:4px 0 0 auto; }
+  .city { color:rgba(255,255,255,.62); font-size:11px; letter-spacing:.03em; text-shadow:0 0 4px #000, 0 0 2px #000;
+    pointer-events:none; white-space:nowrap; transform:translateY(-9px); }
+  .hide-labels .city, .z-low .city.t2 { display:none; }
+  #about { position:absolute; inset:0; background:rgba(2,3,6,.72); display:none; align-items:center; justify-content:center; padding:16px; z-index:5; }
+  #about.open { display:flex; }
+  #about article { background:#0b0f18; border:1px solid var(--line); border-radius:12px; max-width:640px; max-height:86vh;
+    overflow:auto; padding:22px 26px; }
+  #about h2 { margin:0 0 8px; font-size:19px; }
+  #about h3 { margin:18px 0 4px; font-size:14px; color:var(--gold); font-weight:600; }
+  #about p, #about li { color:#c9ccd2; font-size:14px; }
+  #about ul { margin:4px 0; padding-left:18px; }
+  #about a { color:var(--gold); }
+  #loading { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); color:var(--dim); font-size:13px; }
+  @media (max-width:700px) {
+    #dock { grid-template-columns:auto 1fr; }
+    #year { font-size:34px; }
+    #slider, #ticks { grid-column:1 / -1; }
+    #stat { grid-column:1 / -1; text-align:left; display:flex; gap:10px; align-items:baseline; min-width:0; }
+    #spark { display:none; }
+    #head p { display:none; }
+  }
+</style>
+</head>
+<body class="z-low">
+<div id="map"></div>
+<div id="loading">Loading the lights…</div>
+
+<div id="head" class="panel">
+  <h1>China Timelapse</h1>
+  <p>The country seen from space at night, one picture a year from 1992 to 2021.</p>
+</div>
+
+<div id="tools" class="panel">
+  <button id="btnLabels" aria-pressed="true">Cities</button>
+  <button id="btnAbout">About</button>
+</div>
+
+<div id="dock" class="panel">
+  <button id="play" aria-label="Play">&#9654;</button>
+  <div id="year">1992</div>
+  <input id="slider" type="range" min="1992" max="2021" step="0.01" value="1992" aria-label="Year">
+  <div id="stat"><b id="statNum"></b><span id="statSub"></span>
+    <svg id="spark" width="170" height="30" aria-hidden="true"></svg></div>
+  <div id="ticks"></div>
+</div>
+
+<div id="about" role="dialog" aria-modal="true" aria-labelledby="aboutTitle">
+  <article>
+    <h2 id="aboutTitle">About this map</h2>
+    <p>Each frame is one year of light seen from orbit at night. Press play, or drag the slider, to watch thirty years of building, electrification and urban growth. This is the first layer of a larger project; built-up land, high-speed rail, metro systems and airports will follow.</p>
+    <h3>What the number means</h3>
+    <p>"Brightly lit area" is the land inside the border drawn here that shines at city or town strength (20 or more on the data's scale of 0 to 63). It counts how far strong light has spread, not how bright the cities have become. The dip in 2014 is the change of satellite sensor, not a real darkening.</p>
+    <h3>Data</h3>
+    <ul>
+      <li>Night lights: Li, Zhou, Zhao and Zhao (2020), <a href="https://doi.org/10.1038/s41597-020-0510-y" target="_blank" rel="noopener">A harmonized global nighttime light dataset 1992-2018</a>, Scientific Data 7:168, with the authors' extension to 2021. It joins two generations of satellite sensor (DMSP until 2013, VIIRS from 2014) into one comparable series at about 1 km. Accessed through Google Earth Engine.</li>
+      <li>Borders: the Aliyun DataV boundary service.</li>
+      <li>Coastlines: Natural Earth.</li>
+    </ul>
+    <h3>Limits</h3>
+    <ul>
+      <li>The two sensors do not see alike. The join between 2013 and 2014 is corrected in the data but can still show as a small step.</li>
+      <li>The older sensor saturates in city centres, so the brightest cores look the same from year to year even when they grew brighter.</li>
+      <li>Light is a proxy. Gas flares, fishing fleets and snow glare register too; dimming can mean better-shielded lamps as well as decline.</li>
+    </ul>
+    <h3>Borders</h3>
+    <p>Boundaries follow China's official standard map. Several are disputed, and their use here is a design choice for a map about China, not a statement on those disputes.</p>
+    <h3>Credit</h3>
+    <p>Map and data pipeline by Alexander Dakin. The satellite data sets are the work of the authors named above. Code and build scripts: <a id="repoLink" href="https://github.com/adakin97/china-timelapse" target="_blank" rel="noopener">github.com/adakin97/china-timelapse</a>.</p>
+    <p><button id="btnClose">Close</button></p>
+  </article>
+</div>
+
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<script>
+const CITIES = [ // name, lon, lat, tier (1 always shown, 2 when zoomed in)
+  ["Beijing",116.40,39.90,1],["Shanghai",121.47,31.23,1],["Guangzhou",113.26,23.13,1],["Shenzhen",114.06,22.54,2],
+  ["Chengdu",104.07,30.57,1],["Chongqing",106.55,29.56,1],["Wuhan",114.31,30.59,1],["Xi'an",108.94,34.34,1],
+  ["Tianjin",117.20,39.13,2],["Hangzhou",120.16,30.27,2],["Nanjing",118.80,32.06,2],["Shenyang",123.43,41.80,1],
+  ["Harbin",126.53,45.80,1],["Urumqi",87.62,43.83,1],["Lhasa",91.13,29.65,1],["Kunming",102.83,24.88,1],
+  ["Zhengzhou",113.63,34.75,2],["Changsha",112.94,28.23,2],["Qingdao",120.38,36.07,2],["Xiamen",118.09,24.48,2],
+  ["Lanzhou",103.83,36.06,1],["Hong Kong",114.17,22.32,1],["Taipei",121.56,25.03,2],["Hohhot",111.75,40.84,2],
+  ["Nanning",108.37,22.82,2],["Guiyang",106.63,26.65,2],["Jinan",117.00,36.67,2],["Hefei",117.23,31.82,2],
+  ["Dalian",121.61,38.91,2],["Changchun",125.32,43.82,2],["Taiyuan",112.55,37.87,2],["Fuzhou",119.30,26.07,2],
+  ["Haikou",110.35,20.02,2],["Xining",101.78,36.62,2],["Yinchuan",106.23,38.49,2],["Nanchang",115.86,28.68,2],
+  ["Shijiazhuang",114.51,38.04,2]];
+const SECONDS_PER_YEAR = 0.75;
+const $ = s => document.querySelector(s);
+const imgUrl = y => `data/lights/${y}.webp`;
+
+(async function main() {
+  const meta = await (await fetch("data/years.json")).json();
+  const years = meta.years.map(d => d.year), Y0 = years[0], Y1 = years[years.length - 1];
+  const [W, S, E, N] = meta.bounds;
+  const corners = [[W, N], [E, N], [E, S], [W, S]];
+  const slider = $("#slider"); slider.min = Y0; slider.max = Y1; slider.value = Y0;
+  $("#ticks").innerHTML = [Y0, 2000, 2010, Y1].map(y => `<span>${y}</span>`).join("");
+
+  const map = new maplibregl.Map({
+    container: "map", attributionControl: false, dragRotate: false, pitchWithRotate: false, touchPitch: false,
+    maxBounds: [[35, -8], [170, 66]], minZoom: 2, maxZoom: 8,
+    bounds: [[73, 17.5], [135.5, 53.8]], fitBoundsOptions: { padding: { top: 70, bottom: 150, left: 20, right: 20 } },
+    style: { version: 8, sources: {
+        land: { type: "geojson", data: "data/land.geojson" },
+        china: { type: "geojson", data: "data/china.geojson" },
+        la: { type: "image", url: imgUrl(Y0), coordinates: corners },
+        lb: { type: "image", url: imgUrl(Y0 + 1), coordinates: corners } },
+      layers: [
+        { id: "bg", type: "background", paint: { "background-color": "#04060b" } },
+        { id: "land", type: "fill", source: "land", paint: { "fill-color": "#0a0e16" } },
+        { id: "china", type: "fill", source: "china", filter: ["==", ["get", "kind"], "country"], paint: { "fill-color": "#111724" } },
+        { id: "la", type: "raster", source: "la", paint: { "raster-opacity": 1, "raster-fade-duration": 0, "raster-opacity-transition": { duration: 0 } } },
+        { id: "lb", type: "raster", source: "lb", paint: { "raster-opacity": 0, "raster-fade-duration": 0, "raster-opacity-transition": { duration: 0 } } },
+        { id: "prov", type: "line", source: "china", filter: ["==", ["get", "kind"], "province"], paint: { "line-color": "rgba(255,255,255,.10)", "line-width": 0.6 } },
+        { id: "dash", type: "line", source: "china", filter: ["==", ["get", "kind"], "dashline"], paint: { "line-color": "rgba(255,255,255,.34)", "line-width": 1.1 } },
+        { id: "border", type: "line", source: "china", filter: ["==", ["get", "kind"], "country"], paint: { "line-color": "rgba(255,255,255,.34)", "line-width": 1.1 } }
+      ] }
+  });
+  map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
+  map.touchZoomRotate.disableRotation();
+  document.querySelector(".maplibregl-ctrl-top-right").style.marginTop = "64px";
+
+  CITIES.forEach(([name, lon, lat, tier]) => {
+    const el = document.createElement("div"); el.className = "city t" + tier; el.textContent = name;
+    new maplibregl.Marker({ element: el, anchor: "bottom" }).setLngLat([lon, lat]).addTo(map);
+  });
+  const zoomClass = () => document.body.classList.toggle("z-low", map.getZoom() < 4.6);
+  map.on("zoom", zoomClass); zoomClass();
+
+  // Two picture layers. "base" shows the current year in full; "next" fades the following year in on top.
+  let base = "la", next = "lb", baseYear = Y0, nextYear = Y0 + 1, t = Y0, playing = false, last = 0;
+  const other = id => id === "la" ? "lb" : "la";
+  const setImg = (id, y) => map.getSource(id).updateImage({ url: imgUrl(Math.min(y, Y1)), coordinates: corners });
+  const op = (id, v) => map.setPaintProperty(id, "raster-opacity", v);
+
+  function show(time) {
+    t = Math.max(Y0, Math.min(Y1, time));
+    const y = Math.min(Math.floor(t), Y1), frac = t - y;
+    if (y === nextYear && y === baseYear + 1) {           // rolled into the next year: swap the two layers' roles
+      const old = base; base = next; next = old; baseYear = y; nextYear = y + 1;
+      op(next, 0); setImg(next, nextYear); map.moveLayer(next, "prov"); op(base, 1);
+    } else if (y !== baseYear) {                           // jumped somewhere else on the slider
+      baseYear = y; nextYear = y + 1; op(next, 0); setImg(base, baseYear); setImg(next, nextYear); op(base, 1);
+    }
+    op(next, y < Y1 ? frac : 0);
+    $("#year").textContent = y; slider.value = t; stat(y, frac);
+  }
+
+  const fmt = n => n >= 1e6 ? (n / 1e6).toFixed(2) + " million km²" : Math.round(n / 1000) + ",000 km²";
+  function stat(y, frac) {
+    const i = y - Y0, a = meta.years[i].lit_km2, b = (meta.years[i + 1] || meta.years[i]).lit_km2, v = a + (b - a) * frac;
+    $("#statNum").textContent = fmt(v);
+    const ratio = v / meta.years[0].lit_km2;
+    $("#statSub").textContent = y === Y0 && frac === 0 ? "brightly lit area" : `brightly lit, ${ratio.toFixed(1)} times ${Y0}`;
+    $("#sparkDot")?.setAttribute("cx", sx(y + frac)); $("#sparkDot")?.setAttribute("cy", sy(v));
+  }
+  const maxLit = Math.max(...meta.years.map(d => d.lit_km2));
+  const sx = y => 3 + (y - Y0) / (Y1 - Y0) * 164, sy = v => 27 - v / maxLit * 24;
+  $("#spark").innerHTML = `<polyline fill="none" stroke="rgba(255,196,107,.75)" stroke-width="1.5" points="${
+    meta.years.map(d => sx(d.year) + "," + sy(d.lit_km2)).join(" ")}"/><circle id="sparkDot" r="3" fill="#fff"/>`;
+
+  function frame(now) {
+    if (!playing) return;
+    const dt = Math.min(0.5, (now - last) / 1000); last = now;
+    if (t >= Y1) { setPlaying(false); return; }
+    show(t + dt / SECONDS_PER_YEAR);
+    requestAnimationFrame(frame);
+  }
+  function setPlaying(on) {
+    playing = on; $("#play").innerHTML = on ? "&#10073;&#10073;" : "&#9654;"; $("#play").setAttribute("aria-label", on ? "Pause" : "Play");
+    if (on) { if (t >= Y1) show(Y0); last = performance.now(); requestAnimationFrame(frame); }
+  }
+  $("#play").onclick = () => setPlaying(!playing);
+  slider.oninput = () => { setPlaying(false); show(parseFloat(slider.value)); };
+  slider.onchange = () => show(Math.round(parseFloat(slider.value)));
+  document.addEventListener("keydown", e => {
+    if (e.target.tagName === "INPUT") return;
+    if (e.code === "Space") { e.preventDefault(); setPlaying(!playing); }
+    if (e.code === "ArrowRight") { setPlaying(false); show(Math.floor(t) + 1); }
+    if (e.code === "ArrowLeft") { setPlaying(false); show(Math.ceil(t) - 1); }
+    if (e.code === "Escape") $("#about").classList.remove("open");
+  });
+  $("#btnLabels").onclick = e => { const off = document.body.classList.toggle("hide-labels"); e.currentTarget.setAttribute("aria-pressed", String(!off)); };
+  $("#btnAbout").onclick = () => $("#about").classList.add("open");
+  $("#btnClose").onclick = () => $("#about").classList.remove("open");
+  $("#about").onclick = e => { if (e.target.id === "about") $("#about").classList.remove("open"); };
+
+  map.once("idle", () => { $("#loading").remove(); show(Y0); });
+  // warm the browser cache so playback does not wait on the network
+  let k = 0; (function warm() { if (k < years.length) { const im = new Image(); im.onload = im.onerror = warm; im.src = imgUrl(years[k++]); } })();
+})();
+</script>
+</body>
+</html>
